@@ -1,0 +1,186 @@
+﻿# CHANGELOG — Network Service Manager
+
+## v2.5.3 — 2026-09-16
+
+### 2026-09-16 — Expanded English documentation
+
+- Rewrote `README_ENG.md` as a complete English reference aligned with the
+  Russian documentation.
+- Added menu, command, service-number, object, wizard, JSON profile-mode, VLAN,
+  APIPA, DHCP, original-state, theme, console, animation, runtime-file, and
+  recommendation sections.
+- Replaced previous English examples with the same anonymised object names,
+  addresses, and VLAN IDs used in `README_RU.md`.
+- Clarified profile-mode behaviour and known operational limitations.
+- Anonymised object, device, VLAN, and IPv4 examples in both README files.
+- Anonymised two IPv4 prompts in `NetworkManager.ps1` that were still using
+  earlier documentation examples.
+- Prepared a clean v2.5.3 distribution archive without profiles, logs, adapter
+  cache, network snapshots, user theme, or development tests.
+- Prepared a clean-root history plan that excludes the former v2.5.2 release
+  notes from the replacement repository tree.
+
+Validation:
+- Checked all complete JSON examples in `README_ENG.md` with PowerShell
+  `ConvertFrom-Json`.
+- Confirmed no previously removed project or device identifiers remain in the
+  English document.
+- Checked five complete JSON examples in `README_RU.md`; its DeviceName and
+  PingTarget example is intentionally a JSON fragment.
+- Created and verified `Network_Service_Manager_v2.5.3.zip` with eight intended
+  distribution files; its SHA256 is stored in `dist\SHA256SUMS-v2.5.3.txt`.
+
+## v2.5.2 — 2026-09-15
+
+### 2026-09-15 — Обнаружение адаптеров и исправление применения профиля
+
+Причины: ложное определение поддержки VLAN по скрытому IntelANSVlanID,
+использование устаревших возможностей адаптера и ошибка при отсутствии PingTarget.
+
+- Повторная проверка физических адаптеров и текущего драйвера при возврате в меню и перед сетевыми операциями; замена проверяется по InterfaceGuid.
+- Сохранённые VLAN-возможности больше не подменяют результаты текущего обнаружения.
+- Скрытый IntelANSVlanID без подтверждающего имени поля больше не объявляется поддерживаемым способом прямой настройки VLAN.
+- Packet Priority & VLAN исключён из кандидатов VLAN ID; неизвестное непустое значение не сбрасывается автоматически.
+- Отсутствующее значение VLAN не требует операции сброса; ошибки чтения драйвера останавливают операцию.
+- Возврат DHCP проверяет снятие VLAN перед изменением IPv4.
+- Исправлена проверка необязательного PingTarget при его отсутствии в профиле.
+- Добавлены автономные проверки tests/AdapterDetection.Tests.ps1 с имитацией драйверов, без изменения сети.
+
+Изменённые файлы:
+- NetworkManager.ps1 — обнаружение, проверка адаптера и применение настроек.
+- README_RU.md, README_ENG.md — описание повторного обнаружения и ограничений VLAN.
+- tests/AdapterDetection.Tests.ps1 — автономные регрессионные проверки.
+- CHANGELOG.txt — история изменений и результаты проверки.
+- README.md, RELEASE_MANIFEST.txt — версия и состав релизного архива.
+- .gitignore — исключения для локальных ZIP-архивов и каталога dist.
+- RELEASE_NOTES_v2.5.2.md — описание релиза для GitHub.
+
+Проверка:
+- powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests\AdapterDetection.Tests.ps1 — PASS в Windows PowerShell 5.1.
+- Проверены имитации Intel и ASIX, сброс к значению драйвера по умолчанию,
+  обновление возможностей, ошибки чтения, отключение/замена адаптера,
+  применение профиля без PingTarget и отказ до изменения IPv4 при неподдерживаемом VLAN.
+- Синтаксический разбор PowerShell и git diff --check — без ошибок.
+
+Ограничения:
+- Пользователь подтвердил успешное тестирование сборки у коллеги. Точный набор
+  аппаратных сценариев не указан; назначение тегированного VLAN на Intel I219-V
+  в Windows 11 не считается подтверждённым. Автономные тесты не меняли сеть.
+- Повторное обнаружение выполняется при возврате в меню и перед сетевыми операциями;
+  фонового опроса во время ожидания ввода нет.
+- Наличие скрытого IntelANSVlanID не подтверждает возможность задания VLAN.
+- Пользователь подтвердил Windows 11. Intel PROSet/ANS VLAN официально не поддерживается
+  в Windows 11: https://www.intel.com/content/www/us/en/support/articles/000087483/ethernet-products.html
+- Подготовлен релиз 2.5.2: обновлены версия программы и документация,
+  создан чистый ZIP без пользовательских данных и файлов разработки.
+
+### Порядок ведения истории
+
+По запросу пользователя от 2026-09-15 при последующих изменениях проекта
+дополнять этот журнал: дата, причина, сделанные изменения, затронутые файлы,
+результаты проверок и известные ограничения. Непроверенные сценарии отмечать явно.
+До выпуска новой версии записи вести в разделе Unreleased.
+
+## v2.5.1
+
+### BRANDING
+- Публичное название проекта и GitHub-репозитория изменено на `Network Service Manager`.
+- Имя `BESKAR` намеренно сохранено внутри консольного интерфейса и при запуске PowerShell-скрипта.
+- Основной файл запуска остаётся `NetworkManager.ps1`.
+
+### FIX / UX
+- Выровнено отображение команд в `help`.
+- В мастере `add ip` добавлен безопасный выход без сохранения через `exit` или `cancel` на любом шаге.
+- Русская команда отмены не используется.
+
+
+### FIX
+- Исправлена автоматическая проверка `PingTarget`: вместо `Test-Connection -TimeoutSeconds` используется стандартный `ping.exe`.
+- Устранена ошибка совместимости с Windows PowerShell 5.1, где параметр `TimeoutSeconds` может отсутствовать.
+- Сохранена логика повторных попыток: после первого успешного ответа дальнейшие попытки не выполняются.
+
+### NEW
+- Добавлена команда `devicename`.
+- Через `devicename` можно включать и отключать отображение `DeviceName` при применении профиля.
+- `devicename` добавлена в `help`.
+- `pingtarget` остаётся доступной через команду и `help`, но удалена из строки быстрого доступа главного меню.
+- `devicename` также не выводится в строке быстрого доступа главного меню.
+
+### PRESERVED
+- Автоматическое определение VLAN-драйвера.
+- Поддержка `VLAN_ID`, `RegVlanID` и других вариантов.
+- Проверка снятия VLAN при переходе на профиль без VLAN.
+- Объекты и профили.
+- `edit` и `edit N`.
+- `ping` и `ping IP`.
+- `theme`.
+- `add ip`.
+- `dhcp`, `state`, `reboot`.
+- MultiAddress / Routes / Mixed.
+- Скрытие APIPA только в интерфейсе BESKAR.
+- Автоматическое изменение размера окна.
+
+---
+
+## v2.5.0
+
+### NEW
+- Добавлена автоматическая проверка `PingTarget` после применения профиля.
+- Добавлена команда `pingtarget` для включения/отключения автоматической проверки.
+- Добавлены ожидание восстановления сети и повторные попытки PingTarget.
+- Добавлен редактор сетевых профилей `edit` и `edit N`.
+- Добавлена обработка пустых значений профилей.
+
+### PRESERVED
+- Адаптивное определение VLAN для разных сетевых адаптеров.
+- Объектная структура `Profiles\<Объект>.json`.
+- `MultiAddress`, `Routes`, `Mixed`.
+- Темы интерфейса.
+- Команда `ping`.
+
+---
+
+## v2.4.0
+
+### NEW
+- Двухуровневая структура: Объект → Сетевые профили.
+- Папка `Profiles`, один JSON-файл на каждый объект.
+- Автоматическое меню объектов по именам JSON-файлов.
+- `add ip` умеет сохранять профиль в текущий объект, другой существующий объект или новый объект.
+- Отдельные `.bak` для каждого объекта.
+- Миграция старого формата профилей.
+
+### PRESERVED
+- Текущее состояние адаптера.
+- Отображение `Name [VLAN; IP]`.
+- `theme` и `Theme.json`.
+- `help` и служебные номера.
+- MultiAddress / Routes / Mixed.
+- DHCP и восстановление исходного состояния.
+- Приветственная анимация.
+
+### DOCS
+- Добавлена инструкция по созданию ярлыка PowerShell без промежуточного CMD.
+- Описан запуск ярлыка от имени администратора и настройка рабочей папки.
+
+### PATCH
+- APIPA `169.254.x.x` больше не удаляется из адаптера.
+- APIPA скрывается только из строки IPv4 в интерфейсе BESKAR.
+- Сетевой стек Windows не изменяется.
+
+---
+
+## v2.3.0
+
+### NEW
+- Команда `reboot`.
+- Обновление списка адаптеров.
+- Автоматическая адаптация к разным VLAN-драйверам.
+- Пошаговые подсказки мастера `add ip`.
+- Выравнивание названий профилей.
+
+### FIX
+- Исправлен `exit/quit`.
+- Исправлена работа с VLAN при смене адаптера.
+- `AdapterProfiles.json` больше не является единственным источником истины.
+- Пустой IP в `add ip` больше не вызывает критическое завершение.

@@ -1,0 +1,39 @@
+﻿Network Service Manager v2.5.3
+GITHUB RELEASE / CLEAN DISTRIBUTION
+
+Публичное название проекта:
+Network Service Manager
+
+Внутреннее имя консольного интерфейса:
+BESKAR / BESKAR Network Manager
+
+Это сделано намеренно: имя BESKAR остаётся в интерфейсе и при запуске
+PowerShell-скрипта, но документация, архивы и GitHub-проект используют
+название Network Service Manager.
+
+В сборке:
+- NetworkManager.ps1 — актуальный код v2.5.3
+- Start.bat — резервный способ запуска
+- README_RU.md — документация на русском языке
+- README_ENG.md — documentation in English
+- CHANGELOG.txt — история изменений
+- README.md — выбор языка документации
+- LICENSE — лицензия MIT
+- RELEASE_MANIFEST.txt — состав сборки
+
+Намеренно НЕ включены:
+- Profiles\
+- AdapterProfiles.json
+- OriginalNetworkState.json
+- Theme.json
+- Logs\
+- StartupError.log
+- NetworkProfiles.legacy.json
+- NetworkProfiles_резерв.json
+- .git\, .gitignore — служебные файлы Git
+- tests\ — автономные проверки для разработки
+- dist\, *.zip — ранее собранные архивы
+- RELEASE_NOTES_v2.5.3.md — описание текущей публикации в репозитории
+
+Для дальнейшей разработки считать эту сборку исходной базой.
+Предыдущие сборки BESKAR не использовать как источник кода.

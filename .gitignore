@@ -1,0 +1,29 @@
+# User/site profiles
+Profiles/
+
+# Machine-specific state/cache
+AdapterProfiles.json
+OriginalNetworkState.json
+Theme.json
+
+# Logs
+Logs/
+StartupError.log
+
+# Per-object backups
+*.bak
+
+# Legacy profile files
+NetworkProfiles.json
+NetworkProfiles.legacy.json
+NetworkProfiles_резерв.json
+
+# Common local/editor files
+dist/
+Network_Service_Manager_*.zip
+.vscode/
+.idea/
+*.tmp
+*.log
+Thumbs.db
+.DS_Store
