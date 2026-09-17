@@ -4,7 +4,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $AppName = 'BESKAR Network Manager'
-$AppVersion = '2.5.3'
+$AppVersion = '2.5.4'
 
 $ProfilesDirectory = Join-Path $PSScriptRoot 'Profiles'
 $script:CurrentObjectName = $null
@@ -357,7 +357,9 @@ function Select-ObjectMenu {
         }
 
         Write-Color -Text '   0. ' -Color $ThemeMenuNumber -NoNewline
-        Write-Color -Text 'Выход из программы' -Color $ThemeText
+        Write-Color `
+            -Text $(if ($AllowCreate) { 'Назад без создания профиля' } else { 'Выход из программы' }) `
+            -Color $ThemeText
 
         $selection = (Read-Host 'Выберите объект или команду').Trim()
 
@@ -375,8 +377,15 @@ function Select-ObjectMenu {
             Write-Color `
                 -Text 'Название станет именем JSON-файла в папке Profiles.' `
                 -Color $ThemeMuted
+            Write-Color `
+                -Text 'Введите exit или cancel, чтобы вернуться без создания объекта.' `
+                -Color $ThemeWarning
 
             $name = (Read-Host 'Название объекта').Trim()
+
+            if (Test-WizardCancelInput -Value $name) {
+                return $false
+            }
 
             try {
                 $newPath = New-ObjectProfilesFile -ObjectName $name
@@ -1036,10 +1045,39 @@ function Update-SelectedAdapterCapability {
         throw 'Выбранный адаптер отключён, переименован или заменён. Выберите адаптер заново командой adapter.'
     }
 
-    $script:AdapterCapability = $null
-    $script:VlanProperty = $null
-    $script:AdapterCapability = Detect-AdapterCapability -Name $script:AdapterName
-    $script:VlanProperty = Get-CurrentAdapterVlanProperty
+    Initialize-SelectedAdapterCapability
+}
+
+function Initialize-SelectedAdapterCapability {
+    # После подключения кабеля или USB-адаптера драйвер иногда кратковременно
+    # не отдаёт расширенные свойства. Повторяем только чтение, не отключая адаптер.
+    $lastError = $null
+
+    for ($attempt = 1; $attempt -le 4; $attempt++) {
+        try {
+            $script:AdapterCapability = $null
+            $script:VlanProperty = $null
+            $script:AdapterCapability = Detect-AdapterCapability -Name $script:AdapterName
+            $script:VlanProperty = Get-CurrentAdapterVlanProperty
+            return
+        }
+        catch {
+            $lastError = $_
+            $script:AdapterCapability = $null
+            $script:VlanProperty = $null
+
+            if ($attempt -lt 4) {
+                Write-OperationLog `
+                    -Action 'AdapterInitialization' `
+                    -Result 'Retry' `
+                    -Details ("Attempt={0}; {1}" -f $attempt, $_.Exception.Message)
+                Start-Sleep -Milliseconds 1500
+            }
+        }
+    }
+
+    throw ("Не удалось инициализировать адаптер «{0}» после 4 попыток. {1}" -f `
+        $script:AdapterName, $lastError.Exception.Message)
 }
 
 function Select-NetworkAdapter {
@@ -1142,10 +1180,7 @@ function Select-NetworkAdapter {
             Write-Host ''
 
             try {
-                $script:AdapterCapability = Detect-AdapterCapability `
-                    -Name $script:AdapterName
-
-                $script:VlanProperty = Get-CurrentAdapterVlanProperty
+                Initialize-SelectedAdapterCapability
 
                 Show-AdapterCapabilitySummary
                 Write-Host ''
@@ -1161,9 +1196,10 @@ function Select-NetworkAdapter {
                     -Color $ThemeWarning
                 Write-Color -Text $_.Exception.Message -Color $ThemeWarning
                 Write-Color `
-                    -Text 'Профили без VLAN остаются доступными.' `
+                    -Text 'Выберите адаптер заново или обновите список командой 90.' `
                     -Color $ThemeMuted
-                Start-Sleep -Seconds 2
+                Pause-Menu
+                continue
             }
 
             Save-OriginalState
@@ -2665,22 +2701,35 @@ function Read-RequiredIPv4 {
 
 function Read-SubnetMask {
     param(
-        [switch]$AllowCancel
+        [switch]$AllowCancel,
+
+        [string]$DefaultMask = '255.255.255.0'
     )
 
     while ($true) {
-        $value = (Read-Host 'Маска').Trim()
+        $value = (Read-Host ("Маска (Enter = {0}; можно /24 или 24)" -f $DefaultMask)).Trim()
 
         if ($AllowCancel -and (Test-WizardCancelInput -Value $value)) {
             $script:WizardCancelRequested = $true
             return $null
         }
 
+        if ([string]::IsNullOrWhiteSpace($value)) {
+            return $DefaultMask
+        }
+
+        if ($value -match '^/?(\d{1,2})$') {
+            $prefix = [int]$Matches[1]
+            if ($prefix -ge 0 -and $prefix -le 32) {
+                return Convert-PrefixToMask -PrefixLength $prefix
+            }
+        }
+
         if (Test-SubnetMaskText -Value $value) {
             return $value
         }
 
-        Write-Color -Text 'Некорректная маска IPv4.' -Color $ThemeError
+        Write-Color -Text 'Некорректная маска. Укажите 255.255.255.0, /24 или 24.' -Color $ThemeError
     }
 }
 
@@ -2848,6 +2897,8 @@ function Show-EditableProfileSummary {
     Write-Color -Text ([string]$Profile.Name) -Color $ThemeText
     Write-Color -Text '  Mode       : ' -Color $ThemeMuted -NoNewline
     Write-Color -Text $mode -Color $ThemeText
+    Write-Color -Text '  Категория  : ' -Color $ThemeMuted -NoNewline
+    Write-Color -Text $(if ($Profile.PSObject.Properties.Name -contains 'Category') { [string]$Profile.Category } else { 'Сетевые профили' }) -Color $ThemeText
 
     if ($mode -eq 'Network') {
         $vlanText = if (
@@ -2869,6 +2920,18 @@ function Show-EditableProfileSummary {
 
         Write-Color -Text '  Шлюз       : ' -Color $ThemeMuted -NoNewline
         Write-Color -Text $gatewayText -Color $ThemeText
+    }
+
+    if ($mode -in @('MultiAddress', 'Mixed')) {
+        Write-Color -Text '  IP-адресов: ' -Color $ThemeMuted -NoNewline
+        Write-Color -Text (@($Profile.Addresses).Count) -Color $ThemeText
+    }
+
+    if ($mode -in @('Routes', 'Mixed')) {
+        Write-Color -Text '  Маршрутов : ' -Color $ThemeMuted -NoNewline
+        Write-Color -Text (@($Profile.Routes).Count) -Color $ThemeText
+        Write-Color -Text '  Постоянные: ' -Color $ThemeMuted -NoNewline
+        Write-Color -Text $(if ($Profile.Persistent) { 'да' } else { 'нет' }) -Color $ThemeText
     }
 
     Write-Color -Text '  DeviceName : ' -Color $ThemeMuted -NoNewline
@@ -3124,6 +3187,136 @@ function Show-PingTargetMenu {
     }
 }
 
+function Select-NewProfileMode {
+    while ($true) {
+        Write-Color -Text 'Выберите режим профиля:' -Color $ThemeAccent
+        Write-Color -Text '  1. Network      — один постоянный IPv4, при необходимости VLAN и шлюз' -Color $ThemeText
+        Write-Color -Text '  2. MultiAddress — несколько временных IPv4 на одном адаптере' -Color $ThemeText
+        Write-Color -Text '  3. Routes       — временные или постоянные маршруты' -Color $ThemeText
+        Write-Color -Text '  4. Mixed        — несколько IPv4 и маршруты' -Color $ThemeText
+        Write-Color -Text '  0. Отмена' -Color $ThemeMenuNumber
+
+        $choice = (Read-Host 'Режим').Trim().ToLowerInvariant()
+
+        switch ($choice) {
+            '0' { return $null }
+            '1' { return 'Network' }
+            '2' { return 'MultiAddress' }
+            '3' { return 'Routes' }
+            '4' { return 'Mixed' }
+            'exit' { return $null }
+            'cancel' { return $null }
+            default { Write-Color -Text 'Введите номер от 0 до 4.' -Color $ThemeError }
+        }
+    }
+}
+
+function Read-NewProfileIdentity {
+    while ($true) {
+        $name = (Read-Host 'Название профиля').Trim()
+        if (Test-WizardCancelInput -Value $name) { return $null }
+        if (-not [string]::IsNullOrWhiteSpace($name)) { break }
+        Write-Color -Text 'Название не может быть пустым.' -Color $ThemeError
+    }
+
+    Write-Host ''
+    Write-Color -Text 'Категория — это только подпись-группа для списка профилей этого объекта.' -Color $ThemeMuted
+    Write-Color -Text 'Она не изменяет IP, VLAN, маршруты или работу адаптера.' -Color $ThemeMuted
+    Write-Color -Text 'Примеры: «ПНР», «Сервис», «Сетевые профили». Enter = «Сетевые профили».' -Color $ThemeMuted
+    $category = (Read-Host 'Категория').Trim()
+    if (Test-WizardCancelInput -Value $category) { return $null }
+    if ([string]::IsNullOrWhiteSpace($category)) { $category = 'Сетевые профили' }
+
+    return [pscustomobject]@{ Name = $name; Category = $category }
+}
+
+function Read-EntryCount {
+    param([string]$Label)
+
+    while ($true) {
+        $value = (Read-Host ("Количество {0} (1-20)" -f $Label)).Trim()
+        if (Test-WizardCancelInput -Value $value) { return $null }
+        $count = 0
+        if ([int]::TryParse($value, [ref]$count) -and $count -ge 1 -and $count -le 20) {
+            return $count
+        }
+        Write-Color -Text 'Введите целое число от 1 до 20.' -Color $ThemeError
+    }
+}
+
+function Read-ProfileAddresses {
+    $count = Read-EntryCount -Label 'IP-адресов'
+    if ($null -eq $count) { return $null }
+    $addresses = @()
+    for ($index = 1; $index -le $count; $index++) {
+        Write-Color -Text ("Адрес {0} из {1}" -f $index, $count) -Color $ThemeAccent
+        $ip = Read-RequiredIPv4 -Prompt 'IP' -AllowCancel
+        if ($script:WizardCancelRequested) { return $null }
+        $mask = Read-SubnetMask -AllowCancel
+        if ($script:WizardCancelRequested) { return $null }
+        $addresses += [pscustomobject]@{ IP = $ip; Mask = $mask }
+    }
+    return @($addresses)
+}
+
+function Read-ProfileRoutes {
+    $count = Read-EntryCount -Label 'маршрутов'
+    if ($null -eq $count) { return $null }
+    $routes = @()
+    for ($index = 1; $index -le $count; $index++) {
+        Write-Color -Text ("Маршрут {0} из {1}" -f $index, $count) -Color $ThemeAccent
+        $destination = Read-RequiredIPv4 -Prompt 'Сеть назначения' -AllowCancel
+        if ($script:WizardCancelRequested) { return $null }
+        $mask = Read-SubnetMask -AllowCancel
+        if ($script:WizardCancelRequested) { return $null }
+        $gateway = Read-RequiredIPv4 -Prompt 'Шлюз' -AllowCancel
+        if ($script:WizardCancelRequested) { return $null }
+        $routes += [pscustomobject]@{ Destination = $destination; Mask = $mask; Gateway = $gateway }
+    }
+    return @($routes)
+}
+
+function Add-SpecialProfileInteractive {
+    param([array]$Profiles, [string]$Mode)
+
+    $identity = Read-NewProfileIdentity
+    if ($null -eq $identity) { Show-WizardCancelled; return $Profiles }
+
+    $profile = [ordered]@{ Name = $identity.Name; Category = $identity.Category; Mode = $Mode }
+
+    if ($Mode -in @('MultiAddress', 'Mixed')) {
+        $vlan = Read-OptionalVlan -AllowCancel
+        if ($script:WizardCancelRequested) { Show-WizardCancelled; return $Profiles }
+        $addresses = Read-ProfileAddresses
+        if ($script:WizardCancelRequested -or $null -eq $addresses) { Show-WizardCancelled; return $Profiles }
+        $profile.VLAN = $vlan
+        $profile.Addresses = $addresses
+    }
+
+    if ($Mode -in @('Routes', 'Mixed')) {
+        $routes = Read-ProfileRoutes
+        if ($script:WizardCancelRequested -or $null -eq $routes) { Show-WizardCancelled; return $Profiles }
+        $profile.Routes = $routes
+        $persistent = (Read-Host 'Сохранять маршруты после перезагрузки? [y/N]').Trim().ToLowerInvariant()
+        if (Test-WizardCancelInput -Value $persistent) { Show-WizardCancelled; return $Profiles }
+        $profile.Persistent = $persistent -in @('y', 'yes', 'д', 'да')
+    }
+
+    $newProfile = [pscustomobject]$profile
+    Write-Host ''
+    Write-Color -Text 'Проверьте профиль перед сохранением:' -Color $ThemeAccent
+    Show-EditableProfileSummary -Profile $newProfile
+    $confirm = (Read-Host 'Сохранить профиль? [Y/N]').Trim().ToLowerInvariant()
+    if ($confirm -notin @('y', 'yes', 'д', 'да')) { Show-WizardCancelled; return $Profiles }
+
+    $updated = @($Profiles) + $newProfile
+    Save-Profiles -Profiles $updated
+    Write-OperationLog -Action 'AddProfile' -Result 'Success' -Details "Object=$script:CurrentObjectName; Profile=$($identity.Name); Mode=$Mode"
+    Write-Color -Text 'Профиль сохранён.' -Color $ThemeSuccess
+    Pause-Menu
+    return @($updated)
+}
+
 function Add-NetworkProfileInteractive {
     param(
         [Parameter(Mandatory = $false)]
@@ -3196,7 +3389,22 @@ function Add-NetworkProfileInteractive {
     $Profiles = @(Get-Profiles)
 
     Show-Header
-    Write-Color -Text 'Добавление IP-профиля' -Color $ThemeAccent
+    Write-Color -Text 'Добавление сетевого профиля' -Color $ThemeAccent
+    Write-Color -Text ('Объект: {0}' -f $script:CurrentObjectName) -Color $ThemeSuccess
+    Write-Host ''
+
+    $mode = Select-NewProfileMode
+    if ($null -eq $mode) {
+        Show-WizardCancelled
+        return $Profiles
+    }
+
+    if ($mode -ne 'Network') {
+        return Add-SpecialProfileInteractive -Profiles $Profiles -Mode $mode
+    }
+
+    Show-Header
+    Write-Color -Text 'Добавление профиля Network' -Color $ThemeAccent
     Write-Color -Text ('Объект: {0}' -f $script:CurrentObjectName) -Color $ThemeSuccess
     Write-Host ''
 
@@ -3223,8 +3431,8 @@ function Add-NetworkProfileInteractive {
 
     Write-Host ''
     Write-Color -Text 'Шаг 2/7 — Категория' -Color $ThemeAccent
-    Write-Color -Text 'Категория группирует профили внутри выбранного объекта.' -Color $ThemeMuted
-    Write-Color -Text 'Enter = «Сетевые профили».' -Color $ThemeMuted
+    Write-Color -Text 'Это подпись-группа для списка профилей этого объекта; на настройки она не влияет.' -Color $ThemeMuted
+    Write-Color -Text 'Примеры: «ПНР», «Сервис», «Сетевые профили». Enter = «Сетевые профили».' -Color $ThemeMuted
 
     $category = (Read-Host 'Категория').Trim()
 
@@ -3259,7 +3467,7 @@ function Add-NetworkProfileInteractive {
 
     Write-Host ''
     Write-Color -Text 'Шаг 5/7 — Маска подсети' -Color $ThemeAccent
-    Write-Color -Text 'Пример: 255.255.255.0 или 255.255.255.192' -Color $ThemeMuted
+    Write-Color -Text 'Enter = стандартная 255.255.255.0. Можно 255.255.255.0, /24 или 24.' -Color $ThemeMuted
     $mask = Read-SubnetMask -AllowCancel
 
     if ($script:WizardCancelRequested) {

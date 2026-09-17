@@ -1,4 +1,4 @@
-﻿Network Service Manager v2.5.3
+Network Service Manager v2.5.4
 GITHUB RELEASE / CLEAN DISTRIBUTION
 
 Публичное название проекта:
@@ -12,7 +12,7 @@ PowerShell-скрипта, но документация, архивы и GitHub
 название Network Service Manager.
 
 В сборке:
-- NetworkManager.ps1 — актуальный код v2.5.3
+- NetworkManager.ps1 — актуальный код v2.5.4
 - Start.bat — резервный способ запуска
 - README_RU.md — документация на русском языке
 - README_ENG.md — documentation in English
@@ -33,7 +33,8 @@ PowerShell-скрипта, но документация, архивы и GitHub
 - .git\, .gitignore — служебные файлы Git
 - tests\ — автономные проверки для разработки
 - dist\, *.zip — ранее собранные архивы
-- RELEASE_NOTES_v2.5.3.md — описание текущей публикации в репозитории
+- RELEASE_NOTES_v2.5.4.md — описание текущей публикации в репозитории
 
 Для дальнейшей разработки считать эту сборку исходной базой.
 Предыдущие сборки BESKAR не использовать как источник кода.
+

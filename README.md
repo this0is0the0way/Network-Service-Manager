@@ -10,7 +10,7 @@ PowerShell utility for fast network profile switching, VLAN configuration and fi
 
 ---
 
-**Current version:** v2.5.3
+**Current version:** v2.5.4
 
 **License:** MIT
 

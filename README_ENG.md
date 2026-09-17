@@ -1,4 +1,4 @@
-# Network Service Manager v2.5.3
+# Network Service Manager v2.5.4
 
 ## Project and interface names
 
@@ -200,7 +200,7 @@ before-and-after summary before saving.
 
 ### Other commands
 
-- `add ip` — create a standard Network profile;
+- `add ip` — create a network profile through the wizard;
 - `theme` — change console appearance;
 - `objects` — return to object selection;
 - `adapter` — select another network adapter;
@@ -257,17 +257,13 @@ Enter:
 add ip
 ```
 
-The wizard asks for:
+First, choose a profile mode: `Network`, `MultiAddress`, `Routes`, or `Mixed`.
+The wizard then asks only for the values required by that mode. For `Network`,
+it asks for the name, category, VLAN, IP address, subnet mask, gateway, and
+optional fields.
 
-1. profile name;
-2. category;
-3. VLAN;
-4. IP address;
-5. subnet mask;
-6. gateway;
-7. optional fields.
-
-Pressing Enter for VLAN means no VLAN. `"VLAN": null` and an omitted `VLAN`
+Pressing Enter for VLAN means no VLAN. Pressing Enter for the subnet mask uses
+`255.255.255.0`; you can also enter a dotted mask, `/24`, or `24`. `"VLAN": null` and an omitted `VLAN`
 field mean the same thing: any previously configured VLAN must be removed.
 
 At any step, enter `exit` or `cancel` to leave the wizard without saving.
@@ -279,8 +275,9 @@ Optional fields example:
 "PingTarget": "192.168.218.2"
 ```
 
-`Category` groups profiles within an object. It does not affect network
-configuration. Press Enter to use the default category, `Network profiles`.
+`Category` is only a label used to group profiles within the selected object.
+It does not affect network configuration. Examples are `Commissioning`,
+`Service`, and `Network profiles`. Press Enter to use `Network profiles`.
 
 ---
 
@@ -515,13 +512,13 @@ NetworkProfiles_резерв.json
 
 ---
 
-## Clean distribution v2.5.3
+## Clean distribution v2.5.4
 
 The clean distribution contains only program files, documentation, and licensing
 information. User profiles and machine-specific files are intentionally excluded.
 
 ```text
-Network-Service-Manager_v2.5.3
+Network-Service-Manager_v2.5.4
 ├── NetworkManager.ps1
 ├── Start.bat
 ├── README.md
@@ -547,3 +544,4 @@ Copyright (c) 2026 Zimin D.A., tg:@bes_car
 ```
 
 See `LICENSE` for the full license text.
+
